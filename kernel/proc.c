@@ -259,8 +259,8 @@ int
 fork(void)
 {
   int i, pid;
-  struct proc *np;
-  struct proc *p = myproc();
+  struct proc *np;  //new process
+  struct proc *p = myproc();  // now process
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -268,20 +268,22 @@ fork(void)
   }
 
   // Copy user memory from parent to child.
-  if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
+  if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){  //将p进程的页表复制到np进程的页表
     freeproc(np);
     release(&np->lock);
     return -1;
   }
-  np->sz = p->sz;
+  np->sz = p->sz; // 修改np的sz
 
-  np->parent = p;
+  np->parent = p; // np的parent=p
+
+  np->mask = p->mask;//这行是新增的，copy mask
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
   // Cause fork to return 0 in the child.
-  np->trapframe->a0 = 0;
+  np->trapframe->a0 = 0;  //np->trapframe->a0置0,就是子进程返回0
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
@@ -289,15 +291,15 @@ fork(void)
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
 
-  safestrcpy(np->name, p->name, sizeof(p->name));
+  safestrcpy(np->name, p->name, sizeof(p->name)); //继承进程名
 
-  pid = np->pid;
+  pid = np->pid;  
 
   np->state = RUNNABLE;
 
   release(&np->lock);
 
-  return pid;
+  return pid; // 给父进程返回新建进程的pid
 }
 
 // Pass p's abandoned children to init.
@@ -692,4 +694,17 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+
+int
+proc_size()
+{
+  int i;
+  int n = 0;
+  for (i = 0; i < NPROC; i++)
+  {
+    if (proc[i].state != UNUSED) n++; 
+  }
+  return n;
 }
