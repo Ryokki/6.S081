@@ -10,7 +10,7 @@ volatile static int started = 0;
 void
 main()
 {
-  if(cpuid() == 0){
+  if(cpuid() == 0){ //第一个cpu来进行初始化,并开启一个shell
     consoleinit();
     printfinit();
     printf("\n");
@@ -31,9 +31,9 @@ main()
     userinit();      // first user process
     __sync_synchronize();
     started = 1;
-  } else {
-    while(started == 0)
-      ;
+  } else {  //其他的线程不会调用userinit，也不会创建一些资源，只会开启分页,等等..
+    while(started == 0) //这里的(started==0)的自旋非常巧妙,就是要等cpuid==0的这些初始化执行完后才继续执行
+      ; 
     __sync_synchronize();
     printf("hart %d starting\n", cpuid());
     kvminithart();    // turn on paging
@@ -41,5 +41,6 @@ main()
     plicinithart();   // ask PLIC for device interrupts
   }
 
+  //所有cpu都会调用scheduler,这就是一个线程调度器
   scheduler();        
 }

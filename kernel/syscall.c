@@ -78,7 +78,7 @@ int
 argstr(int n, char *buf, int max)
 {
   uint64 addr;
-  if(argaddr(n, &addr) < 0)
+  if(argaddr(n, &addr) < 0) //addr = an
     return -1;
   return fetchstr(addr, buf, max);
 }

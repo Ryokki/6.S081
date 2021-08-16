@@ -21,30 +21,33 @@ extern char trampoline[]; // trampoline.S
 void
 kvminit()
 {
-  kernel_pagetable = (pagetable_t) kalloc();
-  memset(kernel_pagetable, 0, PGSIZE);
+  kernel_pagetable = (pagetable_t) kalloc();  //分配一个物理页
+  memset(kernel_pagetable, 0, PGSIZE);  //物理页清零
 
-  // uart registers
-  kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
+  //kvmmap_ 参数1:虚拟地址  参数2:物理地址
+  // uart registers （与console交互）
+  kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);  
 
-  // virtio mmio disk interface
+  // virtio mmio disk interface (与磁盘交互)
   kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
 
-  // CLINT
+  // CLINT(Core Local中断)
   kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
 
-  // PLIC
+  // PLIC(中断控制器)
   kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
 
-  // map kernel text executable and read-only.
+  // map kernel text executable and read-only. (kernel的text段:刚好在0x80000000处)
   kvmmap(KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
 
-  // map kernel data and the physical RAM we'll make use of.
+  // map kernel data and the physical RAM we'll make use of. (kernel的data段+Free memory:在代码段的结束处开始,在PHTSTOP结束)
   kvmmap((uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
 
   // map the trampoline for trap entry/exit to
   // the highest virtual address in the kernel.
   kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+  /*#define TRAMPOLINE (MAXVA - PGSIZE)
+  *　map the trampoline page to the highest address,in both user and kernel space.*/
 }
 
 // Switch h/w page table register to the kernel's page table,
@@ -376,14 +379,15 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 // Copy from user to kernel.
 // Copy len bytes to dst from virtual address srcva in a given page table.
 // Return 0 on success, -1 on error.
+// 从用户态的srcva虚拟地址,根据其页表,拷贝len字节到内核的char* dst
 int
-copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
+copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)  
 {
   uint64 n, va0, pa0;
 
   while(len > 0){
-    va0 = PGROUNDDOWN(srcva);
-    pa0 = walkaddr(pagetable, va0);
+    va0 = PGROUNDDOWN(srcva); //将参数srcva的低12位置0
+    pa0 = walkaddr(pagetable, va0); //
     if(pa0 == 0)
       return -1;
     n = PGSIZE - (srcva - va0);

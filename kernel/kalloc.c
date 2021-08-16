@@ -26,8 +26,8 @@ struct {
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
-  freerange(end, (void*)PHYSTOP);
+  initlock(&kmem.lock, "kmem"); //初始化锁,将locked=0,name="kmem",cpu=0
+  freerange(end, (void*)PHYSTOP); //将
 }
 
 void
@@ -57,7 +57,7 @@ kfree(void *pa)
   r = (struct run*)pa;
 
   acquire(&kmem.lock);
-  r->next = kmem.freelist;
+  r->next = kmem.freelist;  //将r的next设为freelist,然后将r赋值给freelist，这样就完成了插入链表的操作
   kmem.freelist = r;
   release(&kmem.lock);
 }
@@ -65,15 +65,16 @@ kfree(void *pa)
 // Allocate one 4096-byte page of physical memory.
 // Returns a pointer that the kernel can use.
 // Returns 0 if the memory cannot be allocated.
+// 从kmem.freelist中取出一个空闲页面。
 void *
 kalloc(void)
 {
   struct run *r;
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
-  if(r)
-    kmem.freelist = r->next;
+  acquire(&kmem.lock);  //获得kmem的锁
+  r = kmem.freelist;    //r = kmem的空闲链表
+  if(r) 
+    kmem.freelist = r->next;  //将next作为freelist这个单链表的开头,因为我们要取出原来的链表开头去使用了
   release(&kmem.lock);
 
   if(r)

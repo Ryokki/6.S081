@@ -11,9 +11,9 @@ uint64
 sys_exit(void)
 {
   int n;
-  if(argint(0, &n) < 0)
+  if(argint(0, &n) < 0) //从a0的值读到n中
     return -1;
-  exit(n);
+  exit(n);  //正式调用真正的exit函数.
   return 0;  // not reached
 }
 

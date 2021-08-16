@@ -3,7 +3,7 @@ struct context {
   uint64 ra;
   uint64 sp;
 
-  // callee-saved
+  // callee-saved 被调用者保存
   uint64 s0;
   uint64 s1;
   uint64 s2;
@@ -22,7 +22,7 @@ struct context {
 struct cpu {
   struct proc *proc;          // The process running on this cpu, or null.
   struct context context;     // swtch() here to enter scheduler().
-  int noff;                   // Depth of push_off() nesting.
+  int noff;                   // Depth of push_off() nesting. (栈的高度,即已经获得了几把锁)
   int intena;                 // Were interrupts enabled before push_off()?
 };
 
@@ -41,6 +41,12 @@ extern struct cpu cpus[NCPU];
 // the trapframe includes callee-saved user registers like s0-s11 because the
 // return-to-user path via usertrapret() doesn't return through
 // the entire kernel call stack.
+/*
+trampoline.S中的陷阱处理代码的每进程数据，位于用户页表中trampoline页下的一个单独的页中。
+trampoline.S中的usertrapret()和userret设置了trapframe的kernel_*，从trapframe中恢复用户寄存器，
+切换到用户页表，并进入用户空间。trapframe包括像s0-s11这样的被调用者保存的用户寄存器，因为通过usertrapret()
+返回到用户的路径并不通过整个内核调用栈。
+*/
 struct trapframe {
   /*   0 */ uint64 kernel_satp;   // kernel page table
   /*   8 */ uint64 kernel_sp;     // top of process's kernel stack
@@ -87,20 +93,20 @@ struct proc {
   struct spinlock lock;
 
   // p->lock must be held when using these:
-  enum procstate state;        // Process state
-  struct proc *parent;         // Parent process
+  enum procstate state;        // Process state(进程状态)
+  struct proc *parent;         // Parent process(父进程)
   void *chan;                  // If non-zero, sleeping on chan
   int killed;                  // If non-zero, have been killed
   int xstate;                  // Exit status to be returned to parent's wait
-  int pid;                     // Process ID
+  int pid;                     // Process ID(pid)
 
   // these are private to the process, so p->lock need not be held.
-  uint64 kstack;               // Virtual address of kernel stack
-  uint64 sz;                   // Size of process memory (bytes)
-  pagetable_t pagetable;       // User page table
-  struct trapframe *trapframe; // data page for trampoline.S
-  struct context context;      // swtch() here to run process
-  struct file *ofile[NOFILE];  // Open files
-  struct inode *cwd;           // Current directory
+  uint64 kstack;               // Virtual address of kernel stack (内核栈的地址)
+  uint64 sz;                   // Size of process memory (bytes)  
+  pagetable_t pagetable;       // User page table(页表)
+  struct trapframe *trapframe; // data page for trampoline.S  (这是用户-内核态切换时,需要保存的用户寄存器)
+  struct context context;      // swtch() here to run process (这个是调度器线程的context寄存器)
+  struct file *ofile[NOFILE];  // Open files (打开文件表) 
+  struct inode *cwd;           // Current directory (当前目录)
   char name[16];               // Process name (debugging)
 };

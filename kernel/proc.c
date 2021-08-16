@@ -89,14 +89,16 @@ allocpid() {
 // If found, initialize state required to run in the kernel,
 // and return with p->lock held.
 // If there are no free procs, or a memory allocation fails, return 0.
+// allocproc函数遍历内核维护的进程表，找到没被使用的进程位置(P->state标记为UNUSED就表示没被使用)
 static struct proc*
 allocproc(void)
 {
   struct proc *p;
 
   for(p = proc; p < &proc[NPROC]; p++) {
+    /*下面这个临界区要加锁.*/
     acquire(&p->lock);
-    if(p->state == UNUSED) {
+    if(p->state == UNUSED) {  // 如果找到了这个state,那么goto found.
       goto found;
     } else {
       release(&p->lock);
@@ -213,7 +215,7 @@ userinit(void)
 {
   struct proc *p;
 
-  p = allocproc();
+  p = allocproc();  //分配一个unused进程.
   initproc = p;
   
   // allocate one user page and copy init's instructions
@@ -260,7 +262,7 @@ fork(void)
 {
   int i, pid;
   struct proc *np;
-  struct proc *p = myproc();
+  struct proc *p = myproc();  
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -446,46 +448,42 @@ wait(uint64 addr)
   }
 }
 
-// Per-CPU process scheduler.
-// Each CPU calls scheduler() after setting itself up.
-// Scheduler never returns.  It loops, doing:
-//  - choose a process to run.
-//  - swtch to start running that process.
-//  - eventually that process transfers control
-//    via swtch back to the scheduler.
+
+// 每个CPU都会一直loop执行这个scheduler,并且从不返回，它做这样的事:
+// 1.选择一个进程去run
+// 2.swtch去running这个进程
+// 3.这个进程在一定时候会通过swtch把控制权转回给scheduler.
 void
 scheduler(void)
 {
-  struct proc *p;
-  struct cpu *c = mycpu();
+  struct proc *p; //当前进程
+  struct cpu *c = mycpu();   //当前cpu
   
   c->proc = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
-    intr_on();
+    intr_on();  //开启中断(不知道有什么用，或许是当IO中断发生时，这个CPU要去处理这个中断)
     
-    int found = 0;
+    int found = 0;  //一开始默认没有找到
     for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+      acquire(&p->lock);  //获得这个进程的锁，因为下面是临界区，不允许并发
+      if(p->state == RUNNABLE) {  //对于RUNNABLE的进程,我们将其状态切换成RUNNING，然后去swtch
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
+        p->state = RUNNING; //p的状态改成RUNNING
+        c->proc = p;  //当前cpu的进程改成p
+        swtch(&c->context, &p->context);  //c->context(old) , p->context(new)
 
-        found = 1;
+        // swtch之后，这个cpu就切换到进程p的上下文去执行，直到这个时间片耗尽中断,调用yield,然后swtch到这个上下文继续执行
+
+        c->proc = 0;  //c->proc = null
+
+        found = 1;  // 找到了
       }
-      release(&p->lock);
+      release(&p->lock);  //释放进程锁
     }
-    if(found == 0) {
+    if(found == 0) {  
       intr_on();
-      asm volatile("wfi");
+      asm volatile("wfi");  //risc-v处理器进入休眠状态(降低功耗),直到被中断唤醒
     }
   }
 }
@@ -500,8 +498,8 @@ scheduler(void)
 void
 sched(void)
 {
-  int intena;
-  struct proc *p = myproc();
+  int intena; //锁的深度
+  struct proc *p = myproc();  //从cpu->proc,获取当前进程
 
   if(!holding(&p->lock))
     panic("sched p->lock");
@@ -512,20 +510,22 @@ sched(void)
   if(intr_get())
     panic("sched interruptible");
 
-  intena = mycpu()->intena;
-  swtch(&p->context, &mycpu()->context);
-  mycpu()->intena = intena;
+  intena = mycpu()->intena; //临时保存锁的深度.
+  swtch(&p->context, &mycpu()->context);  
+  //将当前的寄存器存到p->context,将cpu->context赋值给寄存器,就是调度到scheduler继续执行啦.
+  mycpu()->intena = intena; //回到这个进程继续执行的时候,会将
 }
 
 // Give up the CPU for one scheduling round.
 void
 yield(void)
 {
-  struct proc *p = myproc();
-  acquire(&p->lock);
-  p->state = RUNNABLE;
-  sched();
-  release(&p->lock);
+  struct proc *p = myproc();  //从当前的cpu中找到cpu->proc (在scheduler中已经将调度的进程放到cpu->proc中了)
+  // 因为一个进程是不知道自己的进程信息是放在哪里的，所以是保存在这个cpu的proc里,要去这里找才知道.
+  acquire(&p->lock);    //获得锁
+  p->state = RUNNABLE;  //修改进程状态为RUNNABLE(之前一直是RUNNING)
+  sched();  //调度
+  release(&p->lock);  //释放锁
 }
 
 // A fork child's very first scheduling by scheduler()
@@ -564,22 +564,22 @@ sleep(void *chan, struct spinlock *lk)
   // so it's okay to release lk.
   if(lk != &p->lock){  //DOC: sleeplock0
     acquire(&p->lock);  //DOC: sleeplock1
-    release(lk);
+    release(lk);  //释放自旋锁
   }
 
   // Go to sleep.
-  p->chan = chan;
-  p->state = SLEEPING;
+  p->chan = chan; //p->chan非0,就代表这个进程sleep.
+  p->state = SLEEPING;  //状态改为SLEEPING
 
-  sched();
-
+  sched();  //重新调度，即交出CPU控制权
+  
   // Tidy up.
-  p->chan = 0;
+  p->chan = 0;  //被wakeup的时候,会继续执行这里的代码，所以需要将chan置0表示未睡眠
 
   // Reacquire original lock.
   if(lk != &p->lock){
     release(&p->lock);
-    acquire(lk);
+    acquire(lk);  //重获自选锁
   }
 }
 
@@ -590,7 +590,8 @@ wakeup(void *chan)
 {
   struct proc *p;
 
-  for(p = proc; p < &proc[NPROC]; p++) {
+  //遍历所有的进程表,选择proc->chan刚好为这个睡眠锁的地址且SLEEPING的进程，将这个进程改为RUNNING.
+  for(p = proc; p < &proc[NPROC]; p++) {  
     acquire(&p->lock);
     if(p->state == SLEEPING && p->chan == chan) {
       p->state = RUNNABLE;
