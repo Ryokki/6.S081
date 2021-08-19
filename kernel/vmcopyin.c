@@ -28,7 +28,7 @@ statscopyin(char *buf, int sz) {
 // Return 0 on success, -1 on error.
 int
 copyin_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
-{
+{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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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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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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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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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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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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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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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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
   struct proc *p = myproc();
 
   if (srcva >= p->sz || srcva+len >= p->sz || srcva+len < srcva)
