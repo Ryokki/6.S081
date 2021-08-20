@@ -322,7 +322,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
     // clear PTE_W and mark the page as cow page.
-    if (flags & PTE_W)
+    if ((flags & PTE_W) || (flags & PTE_COW))
     {
       flags = (flags | PTE_COW) & (~PTE_W);
       *pte = PA2PTE(pa) | flags;
