@@ -77,8 +77,32 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
+  /*
+  int interval;   //用户指定的时间间隔
+  int ticks;      //距离上次回调经过的时间
+  uint64 handler; //回调函数
+  struct trapframe *alarm_trapframe;  // 保存寄存器 
+  */
   if(which_dev == 2)
-    yield();
+  {
+
+    if (p->interval <= 0 || p->handler < 0) // 错误的值
+      yield();
+    else
+    {
+
+      p->ticks += 1;
+
+      if (p->ticks == p->interval)
+      {
+        //p->ticks = 0;(这里不应该恢复0,应该在sigreturn恢复0)
+        memmove(p->alarm_trapframe,p->trapframe,sizeof(struct trapframe));  // 保存好trapframe 
+        p->trapframe->epc = p->handler;   //设置epc为handler,这样回到用户空间时,就是执行handler函数了
+      }
+
+      yield();
+    }
+  }
 
   usertrapret();
 }

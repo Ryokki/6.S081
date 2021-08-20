@@ -12,6 +12,7 @@
 #include "kernel/riscv.h"
 #include "user/user.h"
 
+
 void test0();
 void test1();
 void test2();
@@ -33,6 +34,7 @@ void
 periodic()
 {
   count = count + 1;
+  printf("%d",count);
   printf("alarm!\n");
   sigreturn();
 }

@@ -132,3 +132,29 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;
 }
+
+
+// lab4
+void digui(long now_fp,long up_bound,long low_bound)
+{
+  if (now_fp<low_bound || now_fp > up_bound)
+    return;
+  
+  long* ret_addr = (long*)(now_fp - 8); // 返回地址
+  long* pre_fp = (long*)(now_fp - 16); // 上一个帧的framepoint的地址
+
+  printf("%p\n",*ret_addr);
+
+  digui(*pre_fp,up_bound,low_bound);
+}
+
+void backtrace()
+{
+  long now_fp = r_fp();  // 当前的fp
+
+  long up_bound = PGROUNDUP(now_fp);
+  long low_bound = PGROUNDDOWN(now_fp);
+
+  digui(now_fp,up_bound,low_bound);
+}
+
