@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -101,10 +103,17 @@ walkaddr(pagetable_t pagetable, uint64 va)
     return 0;
 
   pte = walk(pagetable, va, 0);
-  if(pte == 0)
-    return 0;
-  if((*pte & PTE_V) == 0)
-    return 0;
+
+  // lab4 begin
+  if(pte == 0 || (*pte & PTE_V)==0 ){
+    if (lazy_alloc(va) == 0) {  // 成功懒分配
+      pte = walk(pagetable, va, 0);
+    } else {
+      return 0;
+    }
+  }
+  // lab4 end
+
   if((*pte & PTE_U) == 0)
     return 0;
   pa = PTE2PA(*pte);
@@ -181,11 +190,14 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if((pte = walk(pagetable, a, 0)) == 0)
-      panic("uvmunmap: walk");
+      // panic("uvmunmap: walk");
+      continue;
     if((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+      continue; //由于是懒分配,所以uvmunmap的时候可能还没有分配物理内存,所以这种是不用处理的
+      // panic("uvmunmap: not mapped");
     if(PTE_FLAGS(*pte) == PTE_V)
-      panic("uvmunmap: not a leaf");
+      continue;
+      //panic("uvmunmap: not a leaf");
     if(do_free){
       uint64 pa = PTE2PA(*pte);
       kfree((void*)pa);
@@ -234,8 +246,8 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
   if(newsz < oldsz)
     return oldsz;
 
-  oldsz = PGROUNDUP(oldsz);
-  for(a = oldsz; a < newsz; a += PGSIZE){
+  oldsz = PGROUNDUP(oldsz); 
+  for(a = oldsz; a < newsz; a += PGSIZE){ 
     mem = kalloc();
     if(mem == 0){
       uvmdealloc(pagetable, a, oldsz);
@@ -283,7 +295,8 @@ freewalk(pagetable_t pagetable)
       freewalk((pagetable_t)child);
       pagetable[i] = 0;
     } else if(pte & PTE_V){
-      panic("freewalk: leaf");
+      // panic("freewalk: leaf");
+      continue;
     }
   }
   kfree((void*)pagetable);
@@ -315,9 +328,11 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
+      continue;
+      // panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
+      continue;
+      //panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
@@ -439,4 +454,35 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+int
+lazy_alloc(uint64 addr) {
+  struct proc *p = myproc();
+  // page-faults on a virtual memory address higher than any allocated with sbrk()
+  // this should be >= not > !!!
+  if (addr >= p->sz) {
+    // printf("lazy_alloc: access invalid address");
+    return -1;
+  }
+
+  if (addr < p->trapframe->sp) {
+    printf("lazy_alloc: access address below stack");
+    return -2;
+  }
+  
+  uint64 pa = PGROUNDDOWN(addr);
+  char* mem = kalloc();
+  if (mem == 0) {
+    // printf("lazy_alloc: kalloc failed");
+    return -3;
+  }
+  
+  memset(mem, 0, PGSIZE);
+  if(mappages(p->pagetable, pa, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_U) != 0){
+    kfree(mem);
+    return -4;
+  }
+  
+  return 0;
 }

@@ -241,7 +241,7 @@ growproc(int n)
   uint sz;
   struct proc *p = myproc();
 
-  sz = p->sz;
+  sz = p->sz; // 原来的堆的顶端
   if(n > 0){
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
