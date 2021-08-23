@@ -10,47 +10,66 @@
 #define STACK_SIZE  8192
 #define MAX_THREAD  4
 
+struct thread_context{
+  uint64     ra;
+  uint64     sp;
+  uint64     fp;  // frame pointer:记录当前栈顶. (s0)
+  uint64     s1;
+  uint64     s2;
+  uint64     s3;
+  uint64     s4;
+  uint64     s5;
+  uint64     s6;
+  uint64     s7;
+  uint64     s8;
+  uint64     s9;
+  uint64     s10;
+  uint64     s11;
+};
 
-struct thread {
+struct thread { // thread私有信息:栈和状态
   char       stack[STACK_SIZE]; /* the thread's stack */
   int        state;             /* FREE, RUNNING, RUNNABLE */
+  struct thread_context context;
 
 };
-struct thread all_thread[MAX_THREAD];
-struct thread *current_thread;
-extern void thread_switch(uint64, uint64);
+struct thread all_thread[MAX_THREAD]; // 4个线程的数组
+struct thread *current_thread;  // 当前在执行的线程
+extern void thread_switch(uint64, uint64);  // 线程调度函数
               
 void 
-thread_init(void)
+thread_init(void) // 初始化线程
 {
   // main() is thread 0, which will make the first invocation to
   // thread_schedule().  it needs a stack so that the first thread_switch() can
   // save thread 0's state.  thread_schedule() won't run the main thread ever
   // again, because its state is set to RUNNING, and thread_schedule() selects
   // a RUNNABLE thread.
-  current_thread = &all_thread[0];
+  current_thread = &all_thread[0]; 
   current_thread->state = RUNNING;
+  // 第一个线程是main函数,这个将current_thread变成all_thread[0]
 }
 
 void 
-thread_schedule(void)
+thread_schedule(void) // 线程调度
 {
+  // printf("scheduler\n");
   struct thread *t, *next_thread;
 
   /* Find another runnable thread. */
   next_thread = 0;
-  t = current_thread + 1;
+  t = current_thread + 1; // 下一个线程
   for(int i = 0; i < MAX_THREAD; i++){
     if(t >= all_thread + MAX_THREAD)
-      t = all_thread;
+      t = all_thread; // 如果当前已经是最后一个线程了,那么t=&all_thread[0]
     if(t->state == RUNNABLE) {
-      next_thread = t;
+      next_thread = t;  // 如果t的状态是RUNNABLE的话,那么就找到了, nexe_thread就是准备运行的线程
       break;
     }
-    t = t + 1;
+    t = t + 1;  
   }
 
-  if (next_thread == 0) {
+  if (next_thread == 0) { // 如果没有RUNNABLE的..
     printf("thread_schedule: no runnable threads\n");
     exit(-1);
   }
@@ -63,26 +82,37 @@ thread_schedule(void)
      * Invoke thread_switch to switch from t to next_thread:
      * thread_switch(??, ??);
      */
+    // printf("%d -> %d\n",t-all_thread,current_thread-all_thread);
+    thread_switch((uint64)&t->context,(uint64)&current_thread->context);  // 仅仅是恢复到下一个context,
+    // printf("after switch\n");
+    // 保存
   } else
     next_thread = 0;
+  // printf("scheduler end\n");
 }
 
 void 
-thread_create(void (*func)())
+thread_create(void (*func)()) // 创建线程,指定这个函数
 {
   struct thread *t;
 
   for (t = all_thread; t < all_thread + MAX_THREAD; t++) {
     if (t->state == FREE) break;
   }
+  // 这里是假定一定能有FREE的t吗.
   t->state = RUNNABLE;
   // YOUR CODE HERE
+  t->context.sp  = (uint64)&(t->stack[STACK_SIZE-1]);
+  t->context.fp  = (uint64)&(t->stack[STACK_SIZE-1]);
+  t->context.ra  = (uint64)(func);
 }
 
 void 
 thread_yield(void)
 {
-  current_thread->state = RUNNABLE;
+  // printf("thread_yield\n");
+  // printf("state:%d,%d,%d,%d\n",all_thread[0].state,all_thread[1].state,all_thread[2].state,all_thread[3].state);
+  current_thread->state = RUNNABLE; //改成runnable,然后重新调度.
   thread_schedule();
 }
 
@@ -154,7 +184,7 @@ main(int argc, char *argv[])
 {
   a_started = b_started = c_started = 0;
   a_n = b_n = c_n = 0;
-  thread_init();
+  thread_init();    // 初始化:指定thread[0]为current_thread
   thread_create(thread_a);
   thread_create(thread_b);
   thread_create(thread_c);
