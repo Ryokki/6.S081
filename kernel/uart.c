@@ -181,10 +181,10 @@ uartintr(void)
 {
   // read and process incoming characters.
   while(1){
-    int c = uartgetc();
+    int c = uartgetc(); // 从uart得到输入的字符
     if(c == -1)
       break;
-    consoleintr(c);
+    consoleintr(c); // 将输入字符积累 cons.buf 中，直到有一行字符 
   }
 
   // send buffered characters.

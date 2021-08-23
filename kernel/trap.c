@@ -170,9 +170,9 @@ clockintr()
 
 // check if it's an external interrupt or software interrupt,
 // and handle it.
-// returns 2 if timer interrupt,
-// 1 if other device,
-// 0 if not recognized.
+// returns 2 if timer interrupt,  (返回2:定时器中断)
+// 1 if other device,   (返回1:其他设备的中断)
+// 0 if not recognized. (返回0:错的中断)
 int
 devintr()
 {
@@ -183,7 +183,7 @@ devintr()
     // this is a supervisor external interrupt, via PLIC.
 
     // irq indicates which device interrupted.
-    int irq = plic_claim();
+    int irq = plic_claim();   //向PLIC询问是哪个设备发生了中断
 
     if(irq == UART0_IRQ){
       uartintr();

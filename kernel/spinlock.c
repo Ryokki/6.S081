@@ -90,21 +90,21 @@ push_off(void)
 {
   int old = intr_get();
 
-  intr_off();
-  if(mycpu()->noff == 0)
+  intr_off(); // 关中断
+  if(mycpu()->noff == 0)  // 如果嵌套深度为0,即这个第一把锁,那么保存现在的中断位
     mycpu()->intena = old;
-  mycpu()->noff += 1;
+  mycpu()->noff += 1; // 嵌套深度 += 1
 }
 
 void
 pop_off(void)
 {
   struct cpu *c = mycpu();
-  if(intr_get())
+  if(intr_get())  // 保证此时是关中断的
     panic("pop_off - interruptible");
-  if(c->noff < 1)
+  if(c->noff < 1) // noff肯定是>=0
     panic("pop_off");
-  c->noff -= 1;
+  c->noff -= 1; // 先让嵌套深度-1,然后如果发现此时释放了最外面的锁, 如果原来是开中断的,那么把中断打开
   if(c->noff == 0 && c->intena)
     intr_on();
 }

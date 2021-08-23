@@ -135,7 +135,7 @@ consoleread(int user_dst, uint64 dst, int n)
 // wake up consoleread() if a whole line has arrived.
 //
 void
-consoleintr(int c)
+consoleintr(int c)  // 将输入字符积累 cons.buf 中，直到有一行字符
 {
   acquire(&cons.lock);
 

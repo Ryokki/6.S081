@@ -58,18 +58,18 @@ sys_sleep(void)
   int n;
   uint ticks0;
 
-  if(argint(0, &n) < 0)
+  if(argint(0, &n) < 0)   // 保证n>=0
     return -1;
-  acquire(&tickslock);
+  acquire(&tickslock);    // 获取锁
   ticks0 = ticks;
-  while(ticks - ticks0 < n){
+  while(ticks - ticks0 < n){  // 如果间隔时间<n,那么要不断的sleep
     if(myproc()->killed){
       release(&tickslock);
       return -1;
     }
     sleep(&ticks, &tickslock);
   }
-  release(&tickslock);
+  release(&tickslock);  // 释放锁
   return 0;
 }
 
