@@ -82,9 +82,7 @@ thread_schedule(void) // 线程调度
      * Invoke thread_switch to switch from t to next_thread:
      * thread_switch(??, ??);
      */
-    // printf("%d -> %d\n",t-all_thread,current_thread-all_thread);
-    thread_switch((uint64)&t->context,(uint64)&current_thread->context);  // 仅仅是恢复到下一个context,
-    // printf("after switch\n");
+    thread_switch((uint64)&t->context,(uint64)&current_thread->context);  
     // 保存
   } else
     next_thread = 0;

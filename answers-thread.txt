@@ -1,1 +1,1 @@
-asdhbasdhasiudgasuidhiausdhiuashduiashdiuashiduashdiuasuas
+在put函数中，如果同时都指向同一个table,且都没有在里面找到，在执行insert前插的时候，只要同时执行insert的话，那么，前面执行的那个会丢失.
