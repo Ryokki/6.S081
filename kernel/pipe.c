@@ -90,14 +90,15 @@ pipewrite(struct pipe *pi, uint64 addr, int n)
         release(&pi->lock);
         return -1;
       }
-      wakeup(&pi->nread);
-      sleep(&pi->nwrite, &pi->lock);
+      wakeup(&pi->nread); // 如果满了的话,要叫醒read那边
+      sleep(&pi->nwrite, &pi->lock);  // sleep一下(会释放掉这个锁),等read那边读数据
     }
+    // 如果缓冲区没满,那么copyin一个字符
     if(copyin(pr->pagetable, &ch, addr + i, 1) == -1)
       break;
-    pi->data[pi->nwrite++ % PIPESIZE] = ch;
+    pi->data[pi->nwrite++ % PIPESIZE] = ch; // 更新nwrite,更新data
   }
-  wakeup(&pi->nread);
+  wakeup(&pi->nread); // 如果写完了,那么也要wakeup一下
   release(&pi->lock);
   return i;
 }
@@ -110,15 +111,16 @@ piperead(struct pipe *pi, uint64 addr, int n)
   char ch;
 
   acquire(&pi->lock);
-  while(pi->nread == pi->nwrite && pi->writeopen){  //DOC: pipe-empty
+  // 如果写端关了,或者还没有数据待读入,那么就可以退出这个while,去下面拷贝到用户空间
+  while(pi->nread == pi->nwrite && pi->writeopen){  //DOC: pipe-empty (读完了,得sleep等待pipewrite)
     if(pr->killed){
       release(&pi->lock);
       return -1;
     }
-    sleep(&pi->nread, &pi->lock); //DOC: piperead-sleep
+    sleep(&pi->nread, &pi->lock); //DOC: piperead-sleep(sleep等待pipewrite)
   }
   for(i = 0; i < n; i++){  //DOC: piperead-copy
-    if(pi->nread == pi->nwrite)
+    if(pi->nread == pi->nwrite)   // 这个时候发现读完了的话，那么就读这么点,不会等待
       break;
     ch = pi->data[pi->nread++ % PIPESIZE];
     if(copyout(pr->pagetable, addr + i, &ch, 1) == -1)

@@ -454,6 +454,8 @@ sys_exec(void)
   return -1;
 }
 
+
+// pipe(pipe_fd)  pipe_fd[2] 
 uint64
 sys_pipe(void)
 {
@@ -462,9 +464,9 @@ sys_pipe(void)
   int fd0, fd1;
   struct proc *p = myproc();
 
-  if(argaddr(0, &fdarray) < 0)
+  if(argaddr(0, &fdarray) < 0)  // fdarray = $a0
     return -1;
-  if(pipealloc(&rf, &wf) < 0)
+  if(pipealloc(&rf, &wf) < 0) 
     return -1;
   fd0 = -1;
   if((fd0 = fdalloc(rf)) < 0 || (fd1 = fdalloc(wf)) < 0){

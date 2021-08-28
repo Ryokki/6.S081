@@ -578,7 +578,7 @@ sleep(void *chan, struct spinlock *lk)
   p->chan = 0;
 
   // Reacquire original lock.
-  if(lk != &p->lock){
+  if(lk != &p->lock){ 
     release(&p->lock);
     acquire(lk);
   }
