@@ -49,6 +49,8 @@ void test1(void)
       printf("fork failed");
       exit(-1);
     }
+
+    // 子进程
     if(pid == 0){
       for(i = 0; i < N; i++) {
         a = sbrk(4096);
@@ -61,6 +63,8 @@ void test1(void)
       }
       exit(-1);
     }
+
+    // 父进程继续for循环
   }
 
   for(int i = 0; i < NCHILD; i++){
@@ -81,6 +85,7 @@ int
 countfree()
 {
   uint64 sz0 = (uint64)sbrk(0);
+  printf("sbrk1\n");
   int n = 0;
 
   while(1){

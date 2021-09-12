@@ -334,7 +334,7 @@ exit(int status)
 {
   struct proc *p = myproc();
 
-  if(p == initproc)
+  if(p == initproc) // init进程永远执行wait,所以不能退出
     panic("init exiting");
 
   // Close all open files.
@@ -382,14 +382,14 @@ exit(int status)
   // Parent might be sleeping in wait().
   wakeup1(original_parent);
 
-  p->xstate = status;
-  p->state = ZOMBIE;
+  p->xstate = status;   //返回值放在p->xstate
+  p->state = ZOMBIE;    //变成zombie态
 
-  release(&original_parent->lock);
+  release(&original_parent->lock); 
 
   // Jump into the scheduler, never to return.
-  sched();
-  panic("zombie exit");
+  sched();    
+  panic("zombie exit");     
 }
 
 // Wait for a child process to exit and return its pid.
@@ -403,7 +403,7 @@ wait(uint64 addr)
 
   // hold p->lock for the whole time to avoid lost
   // wakeups from a child's exit().
-  acquire(&p->lock);
+  acquire(&p->lock);  // 获取当前进程的进程锁.
 
   for(;;){
     // Scan through table looking for exited children.
@@ -412,12 +412,12 @@ wait(uint64 addr)
       // this code uses np->parent without holding np->lock.
       // acquiring the lock first would cause a deadlock,
       // since np might be an ancestor, and we already hold p->lock.
-      if(np->parent == p){
+      if(np->parent == p){  // 如果找到的np是子进程
         // np->parent can't change between the check and the acquire()
         // because only the parent changes it, and we're the parent.
-        acquire(&np->lock);
-        havekids = 1;
-        if(np->state == ZOMBIE){
+        acquire(&np->lock); // 获取np的进程锁
+        havekids = 1; 
+        if(np->state == ZOMBIE){  // 找到ZOMBIE的，将其freeproc
           // Found one.
           pid = np->pid;
           if(addr != 0 && copyout(p->pagetable, addr, (char *)&np->xstate,
@@ -436,13 +436,13 @@ wait(uint64 addr)
     }
 
     // No point waiting if we don't have any children.
-    if(!havekids || p->killed){
+    if(!havekids || p->killed){ // 如果没有子进程,或者该进程已经被杀死,那么返回-1
       release(&p->lock);
       return -1;
     }
     
-    // Wait for a child to exit.
-    sleep(p, &p->lock);  //DOC: wait-sleep
+    // Wait for a child to exit. (检查了一遍发现有子进程还没变成zombie,就sleep一下)
+    sleep(p, &p->lock);  //DOC: wait-sleep ()
   }
 }
 

@@ -21,12 +21,17 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
-} kmem;
+  char name[16];
+} kmem[NCPU];
+
 
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
+  for (int i = 0;i < NCPU;i++){
+    snprintf(kmem[i].name,sizeof(kmem[i].name),"kmem%d",i);
+    initlock(&(kmem[NCPU].lock),kmem[i].name);
+  }
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -56,10 +61,14 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+  push_off();
+  int ncpu = cpuid();
+
+  acquire(&kmem[ncpu].lock);
+  r->next = kmem[ncpu].freelist;
+  kmem[ncpu].freelist = r;
+  release(&kmem[ncpu].lock);
+  pop_off();
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -70,12 +79,32 @@ kalloc(void)
 {
   struct run *r;
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
-  if(r)
-    kmem.freelist = r->next;
-  release(&kmem.lock);
+  push_off();
+  int ncpu = cpuid();
 
+  acquire(&kmem[ncpu].lock);  // 这边先获得锁
+  r = kmem[ncpu].freelist;
+  if(r) { // fast path :如果还有freelist,就直接拿来
+    kmem[ncpu].freelist = r->next;  
+  } 
+  release(&kmem[ncpu].lock);  //　这里就释放了这个锁
+
+  if (!r) { // slow path:如果没有freelist,那么steal
+    // steal other cpu's freelist
+    for (int i = 0; i < NCPU; i++) {
+      if (i == ncpu) continue;
+      acquire(&kmem[i].lock);
+      r = kmem[i].freelist;     // 偷到另一个kmem freelist
+      if (r) {  // 如果偷到了
+        kmem[i].freelist = r->next; //更新被偷的freelist
+        release(&kmem[i].lock); 
+        break;
+      }
+      release(&kmem[i].lock);
+    }
+  }
+  pop_off();
+  
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
